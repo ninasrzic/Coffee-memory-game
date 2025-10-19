@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Coffee Memory Game ☕</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Pacifico&family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <!-- LEFT: speech bubbles -->
+  <div class="speech-container" id="speechContainer"></div>
+
+  <!-- CENTER: game -->
+  <div class="game-area">
+    <h1>Improve Memory ☕</h1>
+
+    <div class="stats">
+      <div>⏱️ Time: <span id="timer">0</span>s</div>
+      <div>🔁 Moves: <span id="moves">0</span></div>
+    </div>
+
+    <div class="game-container" id="game"></div>
+
+    <button id="restart">🔄 New Brew</button>
+    <div class="fact" id="coffeeFact"></div>
+  </div>
+
+  <!-- WIN MESSAGE OVERLAY -->
+  <div class="win-message" id="winMessage">
+    🎉 CONGRATULATIONS 🎉
+    <div id="starRating" class="stars"></div>
+    <div class="final-time">Your time: <span id="finalTime"></span>s</div>
+    <button id="playAgain">☕ Play Again</button>
+  </div>
+
+  <!-- RIGHT: coffee menu -->
+  <div class="menu">
+    <h2>☕ Coffee Menu ☕</h2>
+    <ul>
+      <li>Americano ........ 2.10€</li>
+      <li>Mocha ............ 2.50€</li>
+      <li>Espresso ......... 1.90€</li>
+      <li>Latte ............ 2.40€</li>
+      <li>Macchiato ........ 2.30€</li>
+      <li>Cappuccino ....... 2.60€</li>
+      <li>Cold Brew ........ 2.80€</li>
+      <li>Flat White ....... 2.50€</li>
+    </ul>
+  </div>
+
+  <img src="images/donut.png" alt="don" class="donut" >
+
+  <!-- MANAGER POPUP -->
+  <div class="manager-overlay" id="managerOverlay">
+    <div class="manager-popup" id="managerPopup">
+      <img src="images/manager.PNG" alt="Manager">
+      <p id="managerText"></p>
+      <button onclick="closeManagerPopup()">Close</button>
+    </div>
+  </div>
+
+  <script>
+    const coffeeData = [
+      { name: "Americano", image: "americano.png", fact: "Americano – espresso diluted with hot water, light but aromatic." },
+      { name: "Mocha", image: "mocha.png", fact: "Mocha – a perfect mix of coffee and chocolate for sweet lovers." },
+      { name: "Espresso", image: "espresso.png", fact: "Espresso – pure energy in a tiny cup!" },
+      { name: "Latte", image: "latte.png", fact: "Latte – loved by those who enjoy smooth, creamy coffee." },
+      { name: "Macchiato", image: "macchiato.png", fact: "Macchiato – espresso with just a touch of milk foam for balance." },
+      { name: "Cappuccino", image: "cappuccino.png", fact: "Cappuccino – a perfect harmony of foam, milk, and espresso." },
+      { name: "Cold Brew", image: "breve.png", fact: "Cold Brew – coffee brewed slowly with cold water for a smooth taste." },
+      { name: "Flat White", image: "flatwhite.png", fact: "Flat White – similar to a latte but with a stronger coffee flavor and less milk." }
+    ];
+
+    let cards = [...coffeeData, ...coffeeData];
+    let firstCard, secondCard;
+    let lockBoard = false;
+    let moves = 0;
+    let matchedPairs = 0;
+    let time = 0;
+    let timerInterval;
+
+    const gameContainer = document.getElementById("game");
+    const coffeeFact = document.getElementById("coffeeFact");
+    const movesDisplay = document.getElementById("moves");
+    const timerDisplay = document.getElementById("timer");
+    const speechContainer = document.getElementById("speechContainer");
+
+    const speechLines = [
+      { time: 27, text: "Hey! Where’s my coffee?!" },
+      { time: 40, text: "This barista is too slow!" },
+      { time: 50, text: "Come on, I need caffeine!" },
+      { time: 55, text: "Unbelievable! Still waiting!" },
+      { time: 60, text: "CAN I GET YOUR MANAGER?!!" },
+    ];
+
+    function shuffle(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+      return array;
+    }
+
+    function createBoard() {
+      gameContainer.innerHTML = "";
+      document.getElementById("winMessage").classList.remove("show");
+      coffeeFact.textContent = "";
+      moves = 0;
+      matchedPairs = 0;
+      movesDisplay.textContent = moves;
+      time = 0;
+      timerDisplay.textContent = time;
+      clearInterval(timerInterval);
+
+      shuffle(cards).forEach((coffee) => {
+        const card = document.createElement("div");
+        card.classList.add("card");
+        card.innerHTML = `
+          <div class="front">☕</div>
+          <div class="back">
+            <img src="images/${coffee.image}" alt="${coffee.name}">
+          </div>
+        `;
+        card.dataset.name = coffee.name;
+        card.dataset.fact = coffee.fact;
+        card.addEventListener("click", flipCard);
+        gameContainer.appendChild(card);
+      });
+    }
+
+    function startTimer() {
+      clearInterval(timerInterval);
+      timerInterval = setInterval(() => {
+        time++;
+        timerDisplay.textContent = time;
+        checkSpeechBubbles();
+        if (time >= 65) endGameTimeout();
+      }, 1000);
+    }
+
+    function endGameTimeout() {
+      clearInterval(timerInterval);
+      showManagerPopup("The manager is not happy! Start over!");
+      const allCards = document.querySelectorAll(".card");
+      allCards.forEach(card => card.removeEventListener("click", flipCard));
+    }
+
+    function flipCard() {
+      if (lockBoard) return;
+      if (this === firstCard) return;
+      this.classList.add("flip");
+      if (!firstCard) {
+        firstCard = this;
+        if (moves === 0 && time === 0) startTimer();
+        return;
+      }
+      secondCard = this;
+      moves++;
+      movesDisplay.textContent = moves;
+      checkMatch();
+    }
+
+    function checkMatch() {
+      const isMatch = firstCard.dataset.name === secondCard.dataset.name;
+      isMatch ? disableCards() : unflipCards();
+    }
+
+    function disableCards() {
+      firstCard.removeEventListener("click", flipCard);
+      secondCard.removeEventListener("click", flipCard);
+      coffeeFact.textContent = firstCard.dataset.fact;
+      matchedPairs++;
+      resetBoard();
+      if (matchedPairs === coffeeData.length) {
+        clearInterval(timerInterval);
+        showWinMessage();
+      }
+    }
+
+    function unflipCards() {
+      lockBoard = true;
+      setTimeout(() => {
+        firstCard.classList.remove("flip");
+        secondCard.classList.remove("flip");
+        resetBoard();
+      }, 1000);
+    }
+
+    function resetBoard() {
+      [firstCard, secondCard, lockBoard] = [null, null, false];
+    }
+
+    function checkSpeechBubbles() {
+      const line = speechLines.find(l => l.time === time);
+      if (line) showSpeech(line.text);
+    }
+
+    function showSpeech(text) {
+      const bubble = document.createElement("div");
+      bubble.classList.add("speech-bubble");
+      bubble.textContent = text;
+      speechContainer.appendChild(bubble);
+      setTimeout(() => bubble.remove(), 4000);
+    }
+
+    function showManagerPopup(message) {
+      const overlay = document.getElementById("managerOverlay");
+      const text = document.getElementById("managerText");
+      overlay.style.display = "flex";
+      text.textContent = message;
+    }
+
+    function closeManagerPopup() {
+      const overlay = document.getElementById("managerOverlay");
+      overlay.style.display = "none";
+      createBoard();
+    }
+
+    // NEW: Win Message with stars
+    function showWinMessage() {
+      const winMessage = document.getElementById("winMessage");
+      const starRating = document.getElementById("starRating");
+      const finalTime = document.getElementById("finalTime");
+
+      finalTime.textContent = time;
+
+      let stars = 1;
+      if (time < 27) stars = 5;
+      else if (time < 35) stars = 4;
+      else if (time < 45) stars = 3;
+      else if (time < 55) stars = 2;
+      else stars = 1;
+
+      starRating.innerHTML = "★".repeat(stars) + "☆".repeat(5 - stars);
+      winMessage.classList.add("show");
+    }
+
+    document.getElementById("restart").addEventListener("click", createBoard);
+    document.getElementById("playAgain").addEventListener("click", createBoard);
+
+    createBoard();
+  </script>
+</body>
+</html>
